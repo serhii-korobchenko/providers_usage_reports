@@ -27,6 +27,7 @@ def build_providers(config: ReporterConfig) -> list[CostProvider]:
                     billing_project_id=config.gcp_billing_project_id,
                     billing_table=config.gcp_billing_table,
                     credentials_json=config.gcp_credentials_json,
+                    credentials_json_b64=config.gcp_credentials_json_b64,
                     credentials_path=config.gcp_credentials_path,
                 )
             )

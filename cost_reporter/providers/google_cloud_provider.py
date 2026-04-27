@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import logging
 from datetime import date
@@ -17,11 +18,13 @@ class GoogleCloudProvider(CostProvider):
         billing_project_id: str | None,
         billing_table: str | None,
         credentials_json: str | None,
+        credentials_json_b64: str | None,
         credentials_path: str | None,
     ) -> None:
         self.billing_project_id = billing_project_id
         self.billing_table = billing_table
         self.credentials_json = credentials_json
+        self.credentials_json_b64 = credentials_json_b64
         self.credentials_path = credentials_path
 
     async def get_daily_cost(self, start_date: date, end_date: date) -> CostResult:
@@ -30,8 +33,10 @@ class GoogleCloudProvider(CostProvider):
             missing.append("GCP_BILLING_PROJECT_ID")
         if not self.billing_table:
             missing.append("GCP_BILLING_TABLE")
-        if not self.credentials_json and not self.credentials_path:
-            missing.append("GOOGLE_APPLICATION_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS")
+        if not self.credentials_json and not self.credentials_json_b64 and not self.credentials_path:
+            missing.append(
+                "GOOGLE_APPLICATION_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS_JSON_B64 or GOOGLE_APPLICATION_CREDENTIALS"
+            )
 
         if missing:
             return CostResult(
@@ -57,6 +62,10 @@ class GoogleCloudProvider(CostProvider):
         try:
             if self.credentials_json:
                 info = json.loads(self.credentials_json)
+                credentials = service_account.Credentials.from_service_account_info(info)
+            elif self.credentials_json_b64:
+                decoded = base64.b64decode(self.credentials_json_b64).decode("utf-8")
+                info = json.loads(decoded)
                 credentials = service_account.Credentials.from_service_account_info(info)
             else:
                 credentials = service_account.Credentials.from_service_account_file(self.credentials_path)

@@ -44,7 +44,7 @@ cost_reporter/
 - `RAILWAY_PROJECT_ID` (optional)
 
 ### Google Cloud (BigQuery billing export)
-- `GOOGLE_APPLICATION_CREDENTIALS_JSON` **або** `GOOGLE_APPLICATION_CREDENTIALS`
+- `GOOGLE_APPLICATION_CREDENTIALS_JSON` **або** `GOOGLE_APPLICATION_CREDENTIALS_JSON_B64` **або** `GOOGLE_APPLICATION_CREDENTIALS`
 - `GCP_BILLING_PROJECT_ID`
 - `GCP_BILLING_TABLE`
 
@@ -112,6 +112,7 @@ python -m cost_reporter.main --date yesterday
 - `OpenAI error`: перевірте, що `OPENAI_ADMIN_KEY` має доступ до Organization Costs API.
 - `Railway warning`: GraphQL schema може відрізнятися; оновіть query у `railway_provider.py` (є TODO).
 - `Google Cloud error`: перевірте BigQuery Billing Export table, IAM права service account і project/table IDs.
+- Якщо використовуєте B64, перевірте валідність `GOOGLE_APPLICATION_CREDENTIALS_JSON_B64` (base64 від повного JSON ключа).
 - `Telegram send failed`: перевірте `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, чи бот доданий у канал/чат.
 
 ## Security notes

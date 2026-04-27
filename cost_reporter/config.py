@@ -16,6 +16,7 @@ class ReporterConfig:
     railway_team_id: str | None
     railway_project_id: str | None
     gcp_credentials_json: str | None
+    gcp_credentials_json_b64: str | None
     gcp_credentials_path: str | None
     gcp_billing_project_id: str | None
     gcp_billing_table: str | None
@@ -37,6 +38,7 @@ class ReporterConfig:
             railway_team_id=os.getenv("RAILWAY_TEAM_ID"),
             railway_project_id=os.getenv("RAILWAY_PROJECT_ID"),
             gcp_credentials_json=os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON"),
+            gcp_credentials_json_b64=os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON_B64"),
             gcp_credentials_path=os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
             gcp_billing_project_id=os.getenv("GCP_BILLING_PROJECT_ID"),
             gcp_billing_table=os.getenv("GCP_BILLING_TABLE"),
@@ -48,4 +50,6 @@ class ReporterConfig:
                 return json.loads(self.gcp_credentials_json), None
             except json.JSONDecodeError:
                 return None, "GOOGLE_APPLICATION_CREDENTIALS_JSON is not valid JSON"
+        if self.gcp_credentials_json_b64:
+            return None, "GOOGLE_APPLICATION_CREDENTIALS_JSON_B64 is configured (decoded in provider)"
         return None, None

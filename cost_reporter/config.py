@@ -32,7 +32,7 @@ class ReporterConfig:
             cost_providers=cost_providers,
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN"),
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID"),
-            openai_admin_key=os.getenv("OPENAI_ADMIN_KEY"),
+            openai_admin_key=os.getenv("OPENAI_ADMIN_KEY") or os.getenv("OPENAI_ORG_API_KEY"),
             openai_cost_group_by=group_by,
             railway_api_token=os.getenv("RAILWAY_API_TOKEN"),
             railway_team_id=os.getenv("RAILWAY_TEAM_ID"),

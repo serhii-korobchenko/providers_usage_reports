@@ -35,8 +35,8 @@ cost_reporter/
 - `TELEGRAM_CHAT_ID`
 
 ### OpenAI
-- `OPENAI_ADMIN_KEY`
-- `OPENAI_COST_GROUP_BY` (optional, напр. `project_id,line_item`)
+- `OPENAI_ADMIN_KEY` **або** `OPENAI_ORG_API_KEY`
+- `OPENAI_COST_GROUP_BY` (optional, напр. `project_id,line_item`; передається як `group_by[]`)
 
 ### Railway
 - `RAILWAY_API_TOKEN`
@@ -109,7 +109,8 @@ python -m cost_reporter.main --date yesterday
 ## Troubleshooting
 
 - `status=skipped`: не вистачає env — перевірте `.env` / Railway Variables.
-- `OpenAI error` / `403 Forbidden`: перевірте, що `OPENAI_ADMIN_KEY` має Org Admin доступ до Organization Costs API.
+- `OpenAI error` / `403 Forbidden`: перевірте, що `OPENAI_ORG_API_KEY` або `OPENAI_ADMIN_KEY` має Org Admin доступ до Organization Costs API.
+- OpenAI provider використовує Unix timestamps (`start_time`, `end_time`) + `bucket_width=1d` + `group_by[]`.
 - `Railway warning`: GraphQL schema може відрізнятися; оновіть query у `railway_provider.py` (є TODO).
 - Railway API часто повертає GraphQL errors у JSON навіть з HTTP 400 — перевірте `details` у звіті.
 - `Google Cloud error`: перевірте BigQuery Billing Export table, IAM права service account і project/table IDs.

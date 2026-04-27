@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from cost_reporter.providers.base import CostProvider, CostResult
@@ -14,7 +14,7 @@ class OpenAIProvider(CostProvider):
 
     def __init__(self, admin_key: str | None, group_by: list[str] | None = None) -> None:
         self.admin_key = admin_key
-        self.group_by = group_by or []
+        self.group_by = group_by or ["project_id", "line_item"]
 
     async def get_daily_cost(self, start_date: date, end_date: date) -> CostResult:
         if not self.admin_key:
@@ -23,7 +23,7 @@ class OpenAIProvider(CostProvider):
                 total=None,
                 currency="USD",
                 status="skipped",
-                details=["OPENAI_ADMIN_KEY is not set"],
+                details=["OPENAI_ADMIN_KEY or OPENAI_ORG_API_KEY is not set"],
             )
 
         try:
@@ -37,16 +37,19 @@ class OpenAIProvider(CostProvider):
                 details=["httpx is not installed"],
             )
 
+        start_ts = int(datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc).timestamp())
+        end_ts = int(datetime.combine(end_date, datetime.min.time(), tzinfo=timezone.utc).timestamp())
+
         headers = {
             "Authorization": f"Bearer {self.admin_key}",
             "Content-Type": "application/json",
         }
-        params: dict[str, Any] = {
-            "start_time": start_date.isoformat(),
-            "end_time": end_date.isoformat(),
-        }
-        if self.group_by:
-            params["group_by"] = ",".join(self.group_by)
+        params: list[tuple[str, str | int]] = [
+            ("start_time", start_ts),
+            ("end_time", end_ts),
+            ("bucket_width", "1d"),
+        ]
+        params.extend(("group_by[]", item) for item in self.group_by)
 
         url = "https://api.openai.com/v1/organization/costs"
         try:
@@ -59,7 +62,7 @@ class OpenAIProvider(CostProvider):
                         total=None,
                         currency="USD",
                         status="warning",
-                        details=["403 Forbidden: check OPENAI_ADMIN_KEY and org admin permissions"],
+                        details=["403 Forbidden: check OPENAI_ORG_API_KEY/OPENAI_ADMIN_KEY org permissions"],
                     )
                 response.raise_for_status()
                 payload = response.json()
@@ -99,28 +102,28 @@ class OpenAIProvider(CostProvider):
             total=total,
             currency=currency,
             status="ok",
-            details=[f"group_by={','.join(self.group_by)}" if self.group_by else "group_by=none"],
+            details=[f"group_by={','.join(self.group_by)}", f"start_time={start_ts}", f"end_time={end_ts}"],
         )
 
 
 def _extract_total_from_payload(payload: dict[str, Any]) -> tuple[float | None, str]:
     currency = "USD"
-    total = 0.0
     seen = False
 
-    entries = payload.get("data", [])
-    if isinstance(entries, list):
-        for row in entries:
-            amount = _extract_amount(row)
-            if amount is not None:
-                total += amount
+    data = payload.get("data", [])
+    total = 0.0
+    if isinstance(data, list):
+        for bucket in data:
+            bucket_total = _sum_amounts(bucket)
+            if bucket_total is not None:
+                total += bucket_total
                 seen = True
-            row_currency = _extract_currency(row)
+            row_currency = _extract_currency(bucket)
             if row_currency:
                 currency = row_currency
 
     if not seen:
-        amount = _extract_amount(payload)
+        amount = _sum_amounts(payload)
         if amount is not None:
             total = amount
             seen = True
@@ -131,27 +134,45 @@ def _extract_total_from_payload(payload: dict[str, Any]) -> tuple[float | None, 
     return (total if seen else None, currency)
 
 
-def _extract_amount(obj: Any) -> float | None:
+def _sum_amounts(obj: Any) -> float | None:
+    if isinstance(obj, list):
+        subtotal = 0.0
+        seen = False
+        for item in obj:
+            item_value = _sum_amounts(item)
+            if item_value is not None:
+                subtotal += item_value
+                seen = True
+        return subtotal if seen else None
+
     if not isinstance(obj, dict):
         return None
 
-    for key in ("amount", "cost", "total", "total_cost", "value"):
+    if isinstance(obj.get("amount"), dict) and isinstance(obj["amount"].get("value"), (int, float)):
+        return float(obj["amount"]["value"])
+
+    for key in ("cost", "total", "total_cost", "totalCost", "value"):
         value = obj.get(key)
         if isinstance(value, (int, float)):
             return float(value)
-        if isinstance(value, dict):
-            nested = value.get("value")
-            if isinstance(nested, (int, float)):
-                return float(nested)
 
-    result = obj.get("result")
-    if isinstance(result, dict):
-        return _extract_amount(result)
+    for key in ("results", "result", "line_items", "items", "data"):
+        nested = obj.get(key)
+        nested_value = _sum_amounts(nested)
+        if nested_value is not None:
+            return nested_value
 
     return None
 
 
 def _extract_currency(obj: Any) -> str | None:
+    if isinstance(obj, list):
+        for item in obj:
+            value = _extract_currency(item)
+            if value:
+                return value
+        return None
+
     if not isinstance(obj, dict):
         return None
     for key in ("currency", "currency_code"):
@@ -163,4 +184,11 @@ def _extract_currency(obj: Any) -> str | None:
         currency = amount.get("currency")
         if isinstance(currency, str):
             return currency
+
+    for key in ("results", "result", "data", "items"):
+        nested = obj.get(key)
+        value = _extract_currency(nested)
+        if value:
+            return value
+
     return None

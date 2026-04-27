@@ -109,8 +109,9 @@ python -m cost_reporter.main --date yesterday
 ## Troubleshooting
 
 - `status=skipped`: не вистачає env — перевірте `.env` / Railway Variables.
-- `OpenAI error`: перевірте, що `OPENAI_ADMIN_KEY` має доступ до Organization Costs API.
+- `OpenAI error` / `403 Forbidden`: перевірте, що `OPENAI_ADMIN_KEY` має Org Admin доступ до Organization Costs API.
 - `Railway warning`: GraphQL schema може відрізнятися; оновіть query у `railway_provider.py` (є TODO).
+- Railway API часто повертає GraphQL errors у JSON навіть з HTTP 400 — перевірте `details` у звіті.
 - `Google Cloud error`: перевірте BigQuery Billing Export table, IAM права service account і project/table IDs.
 - Якщо використовуєте B64, перевірте валідність `GOOGLE_APPLICATION_CREDENTIALS_JSON_B64` (base64 від повного JSON ключа).
 - Якщо Railway build падає на `externally-managed-environment`, не запускайте `ensurepip`; залишайте `nixpacks.toml` мінімальним (тільки `[start]`).

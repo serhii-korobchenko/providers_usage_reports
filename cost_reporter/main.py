@@ -16,6 +16,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("cost_reporter")
 
+# Avoid verbose HTTP logs that may include sensitive URLs/tokens.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Daily cost reporter")
@@ -53,7 +57,7 @@ async def run_report(target_date: date, dry_run: bool = False) -> list[CostResul
     normalized: list[CostResult] = []
     for provider, result in zip(providers, results, strict=False):
         if isinstance(result, Exception):
-            logger.exception("Provider crashed: %s", provider.name, exc_info=result)
+            logger.error("Provider crashed: %s (%s)", provider.name, result.__class__.__name__)
             normalized.append(
                 CostResult(
                     provider=provider.name,
@@ -82,7 +86,7 @@ async def run_report(target_date: date, dry_run: bool = False) -> list[CostResul
         await send_telegram_message(config.telegram_bot_token, config.telegram_chat_id, message)
         logger.info("Daily cost report sent to Telegram")
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Failed to send Telegram message")
+        logger.error("Failed to send Telegram message: %s", exc.__class__.__name__)
         raise RuntimeError(f"Telegram send failed: {exc.__class__.__name__}") from exc
 
     return normalized

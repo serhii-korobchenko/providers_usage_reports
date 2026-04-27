@@ -4,7 +4,6 @@ import logging
 from datetime import date
 from typing import Any
 
-
 from cost_reporter.providers.base import CostProvider, CostResult
 
 logger = logging.getLogger(__name__)
@@ -71,7 +70,7 @@ class RailwayProvider(CostProvider):
         try:
             payload = await graphql_request(self.api_token, query, variables)
         except Exception as exc:  # noqa: BLE001
-            logger.exception("Railway GraphQL request failed")
+            logger.warning("Railway GraphQL request failed: %s", exc.__class__.__name__)
             return CostResult(
                 provider=self.name,
                 total=None,
@@ -82,7 +81,7 @@ class RailwayProvider(CostProvider):
 
         if payload.get("errors"):
             message = payload["errors"][0].get("message", "Unknown Railway GraphQL error")
-            logger.warning("Railway GraphQL returned errors: %s", message)
+            logger.warning("Railway GraphQL returned errors")
             return CostResult(
                 provider=self.name,
                 total=None,
@@ -123,8 +122,19 @@ async def graphql_request(api_token: str, query: str, variables: dict[str, Any])
     payload = {"query": query, "variables": variables}
     async with httpx.AsyncClient(timeout=60) as client:
         response = await client.post(RAILWAY_API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()
+        content_type = response.headers.get("content-type", "")
+        if "application/json" not in content_type:
+            response.raise_for_status()
+            raise RuntimeError("Railway API returned non-JSON response")
+
+        data = response.json()
+        if response.status_code >= 400 and not data.get("errors"):
+            raise httpx.HTTPStatusError(
+                f"Railway API HTTP error {response.status_code}",
+                request=response.request,
+                response=response,
+            )
+        return data
 
 
 def _extract_railway_cost(payload: dict[str, Any]) -> tuple[float | None, str]:

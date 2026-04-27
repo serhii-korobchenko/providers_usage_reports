@@ -4,7 +4,6 @@ import logging
 from datetime import date
 from typing import Any
 
-
 from cost_reporter.providers.base import CostProvider, CostResult
 
 logger = logging.getLogger(__name__)
@@ -53,16 +52,35 @@ class OpenAIProvider(CostProvider):
         try:
             async with httpx.AsyncClient(timeout=60) as client:
                 response = await client.get(url, headers=headers, params=params)
+                if response.status_code == 403:
+                    logger.warning("OpenAI Costs API returned 403 (permission denied)")
+                    return CostResult(
+                        provider=self.name,
+                        total=None,
+                        currency="USD",
+                        status="warning",
+                        details=["403 Forbidden: check OPENAI_ADMIN_KEY and org admin permissions"],
+                    )
                 response.raise_for_status()
                 payload = response.json()
-        except httpx.HTTPError as exc:
-            logger.exception("OpenAI Costs API request failed")
+        except httpx.HTTPStatusError as exc:
+            code = exc.response.status_code if exc.response else "unknown"
+            logger.warning("OpenAI Costs API HTTP error: %s", code)
             return CostResult(
                 provider=self.name,
                 total=None,
                 currency="USD",
                 status="error",
-                details=[f"OpenAI Costs API error: {exc.__class__.__name__}"],
+                details=[f"OpenAI Costs API HTTP error: {code}"],
+            )
+        except httpx.HTTPError as exc:
+            logger.warning("OpenAI Costs API request error: %s", exc.__class__.__name__)
+            return CostResult(
+                provider=self.name,
+                total=None,
+                currency="USD",
+                status="error",
+                details=[f"OpenAI Costs API request error: {exc.__class__.__name__}"],
             )
 
         total, currency = _extract_total_from_payload(payload)

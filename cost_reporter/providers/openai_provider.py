@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from cost_reporter.providers.base import CostProvider, CostResult
@@ -86,7 +87,7 @@ class OpenAIProvider(CostProvider):
                 details=[f"OpenAI Costs API request error: {exc.__class__.__name__}"],
             )
 
-        total, currency = _extract_total_from_payload(payload)
+        total, currency, non_empty_buckets = _extract_total_from_payload(payload)
         if total is None:
             return CostResult(
                 provider=self.name,
@@ -102,93 +103,75 @@ class OpenAIProvider(CostProvider):
             total=total,
             currency=currency,
             status="ok",
-            details=[f"group_by={','.join(self.group_by)}", f"start_time={start_ts}", f"end_time={end_ts}"],
+            details=[
+                f"group_by={','.join(self.group_by)}",
+                f"start_time={start_ts}",
+                f"end_time={end_ts}",
+                f"non_empty_buckets={non_empty_buckets}",
+            ],
         )
 
 
-def _extract_total_from_payload(payload: dict[str, Any]) -> tuple[float | None, str]:
+def _extract_total_from_payload(payload: dict[str, Any]) -> tuple[float | None, str, int]:
+    """Parse OpenAI costs page/bucket schema.
+
+    Expected shape:
+      {"data": [{"object": "bucket", "results": [{"amount": {"value": "...", "currency": "usd"}}]}]}
+    """
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return None, "USD", 0
+
+    total = Decimal("0")
     currency = "USD"
-    seen = False
+    seen_any_amount = False
+    non_empty_buckets = 0
 
-    data = payload.get("data", [])
-    total = 0.0
-    if isinstance(data, list):
-        for bucket in data:
-            bucket_total = _sum_amounts(bucket)
-            if bucket_total is not None:
-                total += bucket_total
-                seen = True
-            row_currency = _extract_currency(bucket)
-            if row_currency:
-                currency = row_currency
+    for bucket in data:
+        if not isinstance(bucket, dict):
+            continue
+        results = bucket.get("results", [])
+        if not isinstance(results, list) or not results:
+            continue
 
-    if not seen:
-        amount = _sum_amounts(payload)
-        if amount is not None:
-            total = amount
-            seen = True
-        payload_currency = _extract_currency(payload)
-        if payload_currency:
-            currency = payload_currency
+        bucket_had_amount = False
+        for result in results:
+            if not isinstance(result, dict):
+                continue
+            amount = result.get("amount")
+            if not isinstance(amount, dict):
+                continue
 
-    return (total if seen else None, currency)
+            value = amount.get("value")
+            parsed = _to_decimal(value)
+            if parsed is None:
+                continue
 
+            total += parsed
+            seen_any_amount = True
+            bucket_had_amount = True
 
-def _sum_amounts(obj: Any) -> float | None:
-    if isinstance(obj, list):
-        subtotal = 0.0
-        seen = False
-        for item in obj:
-            item_value = _sum_amounts(item)
-            if item_value is not None:
-                subtotal += item_value
-                seen = True
-        return subtotal if seen else None
+            result_currency = amount.get("currency")
+            if isinstance(result_currency, str) and result_currency:
+                currency = result_currency.upper()
 
-    if not isinstance(obj, dict):
-        return None
+        if bucket_had_amount:
+            non_empty_buckets += 1
 
-    if isinstance(obj.get("amount"), dict) and isinstance(obj["amount"].get("value"), (int, float)):
-        return float(obj["amount"]["value"])
+    if not seen_any_amount:
+        return 0.0, currency, 0
 
-    for key in ("cost", "total", "total_cost", "totalCost", "value"):
-        value = obj.get(key)
-        if isinstance(value, (int, float)):
-            return float(value)
-
-    for key in ("results", "result", "line_items", "items", "data"):
-        nested = obj.get(key)
-        nested_value = _sum_amounts(nested)
-        if nested_value is not None:
-            return nested_value
-
-    return None
+    return float(total), currency, non_empty_buckets
 
 
-def _extract_currency(obj: Any) -> str | None:
-    if isinstance(obj, list):
-        for item in obj:
-            value = _extract_currency(item)
-            if value:
-                return value
-        return None
-
-    if not isinstance(obj, dict):
-        return None
-    for key in ("currency", "currency_code"):
-        value = obj.get(key)
-        if isinstance(value, str) and value:
-            return value
-    amount = obj.get("amount")
-    if isinstance(amount, dict):
-        currency = amount.get("currency")
-        if isinstance(currency, str):
-            return currency
-
-    for key in ("results", "result", "data", "items"):
-        nested = obj.get(key)
-        value = _extract_currency(nested)
-        if value:
-            return value
-
+def _to_decimal(value: Any) -> Decimal | None:
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int, float)):
+        return Decimal(str(value))
+    if isinstance(value, str):
+        try:
+            return Decimal(value)
+        except InvalidOperation:
+            return None
     return None

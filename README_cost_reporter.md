@@ -64,6 +64,13 @@ python -m cost_reporter.main --date 2026-04-27 --dry-run
 
 ## Railway запуск (MVP)
 
+### Файли для Railway deploy
+
+У репозиторій додано:
+- `railway.json` — базова конфігурація build/deploy для Railway.
+- `nixpacks.toml` — контроль python/runtime та install/start steps у Nixpacks.
+- `Procfile` — worker fallback command (`python -m cost_reporter.main --date yesterday`).
+
 ### One-off command
 ```bash
 python -m cost_reporter.main --date yesterday
@@ -75,6 +82,14 @@ python -m cost_reporter.main --date yesterday
 ```bash
 python -m cost_reporter.main --date yesterday
 ```
+
+### Налаштування в Railway
+1. Підключіть репозиторій до Railway Project.
+2. Додайте всі змінні з `.env.example` у Variables (без значень-заглушок).
+3. Для щоденного запуску створіть Railway Cron Job з командою:
+   `python -m cost_reporter.main --date yesterday`
+4. Рекомендований schedule: `0 7 * * *` (UTC).
+
 
 ## OpenClaw cron command (приклад)
 

@@ -68,7 +68,7 @@ python -m cost_reporter.main --date 2026-04-27 --dry-run
 
 У репозиторій додано:
 - `railway.json` — базова конфігурація build/deploy для Railway.
-- `nixpacks.toml` — контроль python runtime (`python310Full`, включає `pip`) та install/start steps у Nixpacks.
+- `nixpacks.toml` — мінімальний start command для Railway/Nixpacks без ручного втручання в python/pip середовище.
 - `Procfile` — worker fallback command (`python -m cost_reporter.main --date yesterday`).
 
 ### One-off command
@@ -113,7 +113,7 @@ python -m cost_reporter.main --date yesterday
 - `Railway warning`: GraphQL schema може відрізнятися; оновіть query у `railway_provider.py` (є TODO).
 - `Google Cloud error`: перевірте BigQuery Billing Export table, IAM права service account і project/table IDs.
 - Якщо використовуєте B64, перевірте валідність `GOOGLE_APPLICATION_CREDENTIALS_JSON_B64` (base64 від повного JSON ключа).
-- Якщо Railway build падає з `No module named pip`, перевірте `nixpacks.toml` (має бути `python310Full` + `python -m ensurepip --upgrade`).
+- Якщо Railway build падає на `externally-managed-environment`, не запускайте `ensurepip`; залишайте `nixpacks.toml` мінімальним (тільки `[start]`).
 - `Telegram send failed`: перевірте `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, чи бот доданий у канал/чат.
 
 ## Security notes

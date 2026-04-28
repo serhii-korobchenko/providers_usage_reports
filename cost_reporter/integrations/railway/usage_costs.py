@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -58,17 +58,34 @@ def _build_report_for_date(target_date: date) -> dict[str, Any]:
     if not workspace_id:
         return _error_report(target_date, "RAILWAY_WORKSPACE_ID is not set")
 
-    start_date = target_date.isoformat()
-    end_date = (target_date + timedelta(days=1)).isoformat()
-
     query = """
-    query UsageByWorkspace($workspaceId: String!, $startDate: DateTime!, $endDate: DateTime!, $measurements: [MetricMeasurement!]!) {
-      workspace(id: $workspaceId) {
-        usage(startDate: $startDate, endDate: $endDate, measurements: $measurements) {
-          measurements {
-            measurement
-            value
-          }
+    query GetRailwayUsage($workspaceId: String!, $startDate: DateTime!, $endDate: DateTime!) {
+      usage(
+        workspaceId: $workspaceId
+        measurements: [
+          CPU_USAGE
+          MEMORY_USAGE_GB
+          NETWORK_RX_GB
+          NETWORK_TX_GB
+          DISK_USAGE_GB
+          EPHEMERAL_DISK_USAGE_GB
+          BACKUP_USAGE_GB
+        ]
+        startDate: $startDate
+        endDate: $endDate
+      ) {
+        measurement
+        value
+        tags {
+          deploymentId
+          deploymentInstanceId
+          environmentId
+          pluginId
+          projectId
+          region
+          serviceId
+          volumeId
+          volumeInstanceId
         }
       }
     }
@@ -76,9 +93,8 @@ def _build_report_for_date(target_date: date) -> dict[str, Any]:
 
     variables = {
         "workspaceId": workspace_id,
-        "startDate": start_date,
-        "endDate": end_date,
-        "measurements": list(MEASUREMENT_CONFIG.keys()),
+        "startDate": _to_utc_start_iso(target_date),
+        "endDate": _to_utc_start_iso(target_date + timedelta(days=1)),
     }
 
     try:
@@ -184,20 +200,25 @@ def graphql_request(query: str, variables: dict[str, Any], api_token: str) -> di
 
     with httpx.Client(timeout=30) as client:
         response = client.post(RAILWAY_GRAPHQL_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()
+
+    try:
+        data = response.json()
+    except ValueError:
+        return {"errors": [{"message": f"Railway API HTTP {response.status_code}: non-JSON response"}]}
+
+    if response.status_code >= 400:
+        if isinstance(data, dict) and data.get("errors"):
+            return data
+        return {"errors": [{"message": f"Railway API HTTP {response.status_code}"}]}
+
+    return data if isinstance(data, dict) else {"errors": [{"message": "Railway API returned unexpected payload"}]}
 
 
 def _extract_usage_map(payload: dict[str, Any]) -> dict[str, float] | None:
     if not isinstance(payload, dict):
         return None
 
-    measurements = (
-        payload.get("data", {})
-        .get("workspace", {})
-        .get("usage", {})
-        .get("measurements", [])
-    )
+    measurements = payload.get("data", {}).get("usage", [])
     if not isinstance(measurements, list):
         return None
 
@@ -230,6 +251,11 @@ def _get_price(env_name: str, warnings: list[str]) -> float:
         warnings.append(f"{env_name} is invalid, fallback to 0")
         logger.warning("%s has invalid value, fallback to 0", env_name)
         return 0.0
+
+
+def _to_utc_start_iso(day: date) -> str:
+    value = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
+    return value.isoformat().replace("+00:00", "Z")
 
 
 def _error_report(target_date: date, message: str, raw: dict[str, Any] | None = None) -> dict[str, Any]:

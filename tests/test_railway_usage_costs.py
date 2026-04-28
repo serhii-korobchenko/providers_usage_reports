@@ -31,9 +31,7 @@ class RailwayUsageCostsTests(unittest.TestCase):
     def test_usage_times_price_calculation(self) -> None:
         payload = {
             "data": {
-                "workspace": {
-                    "usage": {
-                        "measurements": [
+                "usage": [
                             {"measurement": "CPU_USAGE", "value": 2},
                             {"measurement": "MEMORY_USAGE_GB", "value": 3},
                             {"measurement": "NETWORK_RX_GB", "value": 4},
@@ -42,8 +40,6 @@ class RailwayUsageCostsTests(unittest.TestCase):
                             {"measurement": "EPHEMERAL_DISK_USAGE_GB", "value": 7},
                             {"measurement": "BACKUP_USAGE_GB", "value": 8},
                         ]
-                    }
-                }
             }
         }
 
@@ -58,11 +54,7 @@ class RailwayUsageCostsTests(unittest.TestCase):
         del os.environ["RAILWAY_PRICE_CPU_USAGE"]
 
         payload = {
-            "data": {
-                "workspace": {
-                    "usage": {"measurements": [{"measurement": "CPU_USAGE", "value": 10}]}
-                }
-            }
+            "data": {"usage": [{"measurement": "CPU_USAGE", "value": 10}]}
         }
 
         with patch.object(usage_costs, "graphql_request", return_value=payload):

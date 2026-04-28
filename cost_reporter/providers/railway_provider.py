@@ -168,19 +168,20 @@ async def graphql_request(api_token: str, query: str, variables: dict[str, Any])
     payload = {"query": query, "variables": variables}
     async with httpx.AsyncClient(timeout=60) as client:
         response = await client.post(RAILWAY_API_URL, headers=headers, json=payload)
-        content_type = response.headers.get("content-type", "")
-        if "application/json" not in content_type:
-            response.raise_for_status()
-            raise RuntimeError("Railway API returned non-JSON response")
 
+    try:
         data = response.json()
-        if response.status_code >= 400 and not data.get("errors"):
-            raise httpx.HTTPStatusError(
-                f"Railway API HTTP error {response.status_code}",
-                request=response.request,
-                response=response,
-            )
-        return data
+    except ValueError:
+        message = f"Railway API HTTP {response.status_code}: non-JSON response"
+        return {"errors": [{"message": message}]}
+
+    if response.status_code >= 400:
+        if isinstance(data, dict) and data.get("errors"):
+            return data
+        message = f"Railway API HTTP {response.status_code}"
+        return {"errors": [{"message": message}], "raw": data if isinstance(data, dict) else {}}
+
+    return data if isinstance(data, dict) else {"errors": [{"message": "Railway API returned unexpected payload"}]}
 
 
 def _to_utc_start_iso(day: date) -> str:

@@ -1,0 +1,1 @@
+worker: python -m cost_reporter.main --date yesterday

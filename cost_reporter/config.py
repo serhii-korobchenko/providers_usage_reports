@@ -15,6 +15,7 @@ class ReporterConfig:
     railway_api_token: str | None
     railway_team_id: str | None
     railway_project_id: str | None
+    railway_workspace_id: str | None
     gcp_credentials_json: str | None
     gcp_credentials_json_b64: str | None
     gcp_credentials_path: str | None
@@ -37,6 +38,7 @@ class ReporterConfig:
             railway_api_token=os.getenv("RAILWAY_API_TOKEN"),
             railway_team_id=os.getenv("RAILWAY_TEAM_ID"),
             railway_project_id=os.getenv("RAILWAY_PROJECT_ID"),
+            railway_workspace_id=os.getenv("RAILWAY_WORKSPACE_ID"),
             gcp_credentials_json=os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON"),
             gcp_credentials_json_b64=os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON_B64"),
             gcp_credentials_path=os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),

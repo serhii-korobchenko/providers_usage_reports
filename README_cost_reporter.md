@@ -42,6 +42,7 @@ cost_reporter/
 - `RAILWAY_API_TOKEN`
 - `RAILWAY_TEAM_ID` (optional)
 - `RAILWAY_PROJECT_ID` (optional)
+- `RAILWAY_WORKSPACE_ID` (required for Railway usage query)
 
 ### Google Cloud (BigQuery billing export)
 - `GOOGLE_APPLICATION_CREDENTIALS_JSON` **або** `GOOGLE_APPLICATION_CREDENTIALS_JSON_B64` **або** `GOOGLE_APPLICATION_CREDENTIALS`

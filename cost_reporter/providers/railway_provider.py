@@ -14,10 +14,17 @@ RAILWAY_API_URL = "https://backboard.railway.com/graphql/v2"
 class RailwayProvider(CostProvider):
     name = "railway"
 
-    def __init__(self, api_token: str | None, team_id: str | None, project_id: str | None) -> None:
+    def __init__(
+        self,
+        api_token: str | None,
+        team_id: str | None,
+        project_id: str | None,
+        workspace_id: str | None,
+    ) -> None:
         self.api_token = api_token
         self.team_id = team_id
         self.project_id = project_id
+        self.workspace_id = workspace_id
 
     async def get_daily_cost(self, start_date: date, end_date: date) -> CostResult:
         if not self.api_token:
@@ -27,6 +34,15 @@ class RailwayProvider(CostProvider):
                 currency="USD",
                 status="skipped",
                 details=["RAILWAY_API_TOKEN is not set"],
+            )
+
+        if not self.workspace_id:
+            return CostResult(
+                provider=self.name,
+                total=None,
+                currency="USD",
+                status="skipped",
+                details=["RAILWAY_WORKSPACE_ID is not set"],
             )
 
         try:
@@ -40,31 +56,28 @@ class RailwayProvider(CostProvider):
                 details=["httpx is not installed"],
             )
 
-        # TODO: Confirm and refine this query against the latest Railway GraphQL billing schema.
         query = """
-        query DailyUsage($projectId: String, $teamId: String, $startDate: String!, $endDate: String!) {
-          me {
-            projects {
-              edges {
-                node {
-                  id
-                  name
-                  usage(startDate: $startDate, endDate: $endDate) {
-                    totalCost
-                    currency
-                  }
-                }
-              }
-            }
+        query GetRailwayUsage($workspaceId: String!) {
+          usage(
+            workspaceId: $workspaceId
+            measurements: [
+              CPU_USAGE
+              MEMORY_USAGE_GB
+              NETWORK_RX_GB
+              NETWORK_TX_GB
+              DISK_USAGE_GB
+              EPHEMERAL_DISK_USAGE_GB
+              BACKUP_USAGE_GB
+            ]
+          ) {
+            measurement
+            value
           }
         }
         """
 
         variables = {
-            "projectId": self.project_id,
-            "teamId": self.team_id,
-            "startDate": start_date.isoformat(),
-            "endDate": end_date.isoformat(),
+            "workspaceId": self.workspace_id,
         }
 
         try:
@@ -91,24 +104,24 @@ class RailwayProvider(CostProvider):
                 raw={"errors": payload.get("errors")},
             )
 
-        total, currency = _extract_railway_cost(payload)
+        total = _extract_railway_usage_total(payload)
         if total is None:
-            logger.warning("Railway response did not include parseable billing fields")
+            logger.warning("Railway usage response did not include parseable values")
             return CostResult(
                 provider=self.name,
                 total=None,
-                currency=currency or "USD",
+                currency="USD",
                 status="warning",
-                details=["Railway billing fields missing or schema changed"],
+                details=["Railway usage values missing or schema changed"],
                 raw={"data_keys": list(payload.get("data", {}).keys()) if isinstance(payload.get("data"), dict) else []},
             )
 
         return CostResult(
             provider=self.name,
             total=total,
-            currency=currency,
+            currency="USD",
             status="ok",
-            details=["Calculated from Railway GraphQL usage fields"],
+            details=[f"workspace_id={self.workspace_id}"],
         )
 
 
@@ -137,33 +150,25 @@ async def graphql_request(api_token: str, query: str, variables: dict[str, Any])
         return data
 
 
-def _extract_railway_cost(payload: dict[str, Any]) -> tuple[float | None, str]:
-    currency = "USD"
+def _extract_railway_usage_total(payload: dict[str, Any]) -> float | None:
+    usage_rows = payload.get("data", {}).get("usage", []) if isinstance(payload.get("data"), dict) else []
+    if not isinstance(usage_rows, list):
+        return None
+
     total = 0.0
     seen = False
-
-    data = payload.get("data", {})
-    projects = (
-        data.get("me", {})
-        .get("projects", {})
-        .get("edges", [])
-        if isinstance(data, dict)
-        else []
-    )
-
-    for edge in projects:
-        node = edge.get("node", {}) if isinstance(edge, dict) else {}
-        usage = node.get("usage", {}) if isinstance(node, dict) else {}
-        if not isinstance(usage, dict):
+    for row in usage_rows:
+        if not isinstance(row, dict):
             continue
-
-        value = usage.get("totalCost") or usage.get("cost")
+        value = row.get("value")
         if isinstance(value, (int, float)):
             total += float(value)
             seen = True
+        elif isinstance(value, str):
+            try:
+                total += float(value)
+                seen = True
+            except ValueError:
+                continue
 
-        usage_currency = usage.get("currency")
-        if isinstance(usage_currency, str) and usage_currency:
-            currency = usage_currency
-
-    return (total if seen else None, currency)
+    return total if seen else None

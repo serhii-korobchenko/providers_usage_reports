@@ -89,15 +89,22 @@ def _parse_usage_response(data: dict[str, Any]) -> tuple[float | None, float, st
     if not isinstance(data, dict):
         return None, 0.0, "USD"
 
-    columns = data.get("columns", [])
-    rows = data.get("rows", [])
-    units = data.get("column_units", [])
+    payload = data.get("data") if isinstance(data.get("data"), dict) else data
+    columns = payload.get("columns", [])
+    rows = payload.get("rows", [])
+    units = payload.get("column_units", [])
     if not isinstance(columns, list) or not isinstance(rows, list):
         return None, 0.0, "USD"
 
-    try:
+    cost_idx = None
+    if "total_cost" in columns:
         cost_idx = columns.index("total_cost")
-    except ValueError:
+    else:
+        for i, name in enumerate(columns):
+            if isinstance(name, str) and "cost" in name.lower():
+                cost_idx = i
+                break
+    if cost_idx is None:
         return None, 0.0, "USD"
 
     usage_idx = columns.index("total_usage") if "total_usage" in columns else None
@@ -110,27 +117,44 @@ def _parse_usage_response(data: dict[str, Any]) -> tuple[float | None, float, st
 
     total_cost = 0.0
     total_usage = 0.0
-    seen = False
+    seen_cost_value = False
 
     for row in rows:
-        if not isinstance(row, list):
-            continue
-        if cost_idx >= len(row):
-            continue
+        cost_value = None
+        usage_value = None
 
-        try:
-            total_cost += float(row[cost_idx])
-            seen = True
-        except (TypeError, ValueError):
-            continue
+        if isinstance(row, list):
+            if cost_idx < len(row):
+                cost_value = row[cost_idx]
+            if usage_idx is not None and usage_idx < len(row):
+                usage_value = row[usage_idx]
+        elif isinstance(row, dict):
+            cost_key = columns[cost_idx]
+            cost_value = row.get(cost_key)
+            if usage_idx is not None:
+                usage_key = columns[usage_idx]
+                usage_value = row.get(usage_key)
 
-        if usage_idx is not None and usage_idx < len(row):
-            try:
-                total_usage += float(row[usage_idx])
-            except (TypeError, ValueError):
-                pass
+        parsed_cost = _to_float(cost_value)
+        if parsed_cost is not None:
+            total_cost += parsed_cost
+            seen_cost_value = True
 
-    return (total_cost if seen else None, total_usage, currency)
+        parsed_usage = _to_float(usage_value)
+        if parsed_usage is not None:
+            total_usage += parsed_usage
+
+    # Empty datasets or all-zero days should be treated as valid zero-cost responses.
+    return (total_cost if seen_cost_value else 0.0, total_usage, currency)
+
+
+def _to_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _start_of_day_ms(day: date) -> int:

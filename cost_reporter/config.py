@@ -57,3 +57,7 @@ class ReporterConfig:
         if self.gcp_credentials_json_b64:
             return None, "GOOGLE_APPLICATION_CREDENTIALS_JSON_B64 is configured (decoded in provider)"
         return None, None
+
+
+def _as_bool(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}

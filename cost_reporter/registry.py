@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from cost_reporter.config import ReporterConfig
 from cost_reporter.providers.base import CostProvider
+from cost_reporter.providers.elevenlabs_provider import ElevenLabsProvider
 from cost_reporter.providers.google_cloud_provider import GoogleCloudProvider
 from cost_reporter.providers.openai_provider import OpenAIProvider
 from cost_reporter.providers.railway_provider import RailwayProvider
@@ -23,6 +24,8 @@ def build_providers(config: ReporterConfig) -> list[CostProvider]:
                     config.railway_cost_breakdown,
                 )
             )
+        elif name == "elevenlabs":
+            providers.append(ElevenLabsProvider(config.elevenlabs_api_key))
         elif name == "google_cloud":
             providers.append(
                 GoogleCloudProvider(

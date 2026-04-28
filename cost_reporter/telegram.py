@@ -52,6 +52,7 @@ def pretty_provider_name(provider: str) -> str:
         "openai": "OpenAI",
         "railway": "Railway",
         "google_cloud": "Google Cloud",
+        "elevenlabs": "ElevenLabs",
     }
     return mapping.get(provider, provider)
 

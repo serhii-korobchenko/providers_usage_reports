@@ -26,10 +26,11 @@ class ReporterConfig:
     gcp_credentials_path: str | None
     gcp_billing_project_id: str | None
     gcp_billing_table: str | None
+    elevenlabs_api_key: str | None
 
     @classmethod
     def from_env(cls) -> "ReporterConfig":
-        providers_raw = os.getenv("COST_PROVIDERS", "openai,railway,google_cloud")
+        providers_raw = os.getenv("COST_PROVIDERS", "openai,railway,google_cloud,elevenlabs")
         cost_providers = [item.strip() for item in providers_raw.split(",") if item.strip()]
         group_by_raw = os.getenv("OPENAI_COST_GROUP_BY", "")
         group_by = [item.strip() for item in group_by_raw.split(",") if item.strip()]
@@ -50,6 +51,7 @@ class ReporterConfig:
             gcp_credentials_path=os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
             gcp_billing_project_id=os.getenv("GCP_BILLING_PROJECT_ID"),
             gcp_billing_table=os.getenv("GCP_BILLING_TABLE"),
+            elevenlabs_api_key=os.getenv("ELEVENLABS_API_KEY"),
         )
 
     def get_gcp_credentials_info(self) -> tuple[dict | None, str | None]:

@@ -1,6 +1,6 @@
 # Daily Cost Reporter
 
-Модуль `cost_reporter` збирає щоденні витрати з кількох провайдерів (OpenAI, Railway, Google Cloud) і надсилає один агрегований звіт у Telegram.
+Модуль `cost_reporter` збирає щоденні витрати з кількох провайдерів (OpenAI, Railway, Google Cloud, ElevenLabs) і надсилає один агрегований звіт у Telegram.
 
 ## Архітектура
 
@@ -28,7 +28,7 @@ cost_reporter/
 ## Env variables
 
 ### Core
-- `COST_PROVIDERS=openai,railway,google_cloud`
+- `COST_PROVIDERS=openai,railway,google_cloud,elevenlabs`
 
 ### Telegram
 - `TELEGRAM_BOT_TOKEN`
@@ -49,6 +49,9 @@ cost_reporter/
 - `GOOGLE_APPLICATION_CREDENTIALS_JSON` **або** `GOOGLE_APPLICATION_CREDENTIALS_JSON_B64` **або** `GOOGLE_APPLICATION_CREDENTIALS`
 - `GCP_BILLING_PROJECT_ID`
 - `GCP_BILLING_TABLE`
+
+### ElevenLabs
+- `ELEVENLABS_API_KEY`
 
 ## Локальний запуск
 
@@ -111,6 +114,7 @@ python -m cost_reporter.main --date yesterday
 ## Troubleshooting
 
 - `status=skipped`: не вистачає env — перевірте `.env` / Railway Variables.
+- `ElevenLabs error`: перевірте `ELEVENLABS_API_KEY` і доступ до endpoint analytics.
 - `OpenAI error` / `403 Forbidden`: перевірте, що `OPENAI_ORG_API_KEY` або `OPENAI_ADMIN_KEY` має Org Admin доступ до Organization Costs API.
 - OpenAI provider використовує Unix timestamps (`start_time`, `end_time`) + `bucket_width=1d` + `group_by[]`.
 - `Railway warning`: GraphQL schema може відрізнятися; оновіть query у `railway_provider.py` (є TODO).

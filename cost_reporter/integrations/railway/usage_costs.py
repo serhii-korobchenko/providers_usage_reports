@@ -44,9 +44,9 @@ MEASUREMENT_CONFIG: dict[str, dict[str, str]] = {
 }
 
 
-def get_railway_daily_cost_report() -> dict[str, Any]:
-    target_date = date.today() - timedelta(days=1)
-    return _build_report_for_date(target_date)
+def get_railway_daily_cost_report(target_date: date | None = None) -> dict[str, Any]:
+    day = target_date or (date.today() - timedelta(days=1))
+    return _build_report_for_date(day)
 
 
 def _build_report_for_date(target_date: date) -> dict[str, Any]:

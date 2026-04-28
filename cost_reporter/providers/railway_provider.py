@@ -4,6 +4,7 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Any
 
+from cost_reporter.integrations.railway.usage_costs import get_railway_daily_cost_report
 from cost_reporter.providers.base import CostProvider, CostResult
 
 logger = logging.getLogger(__name__)
@@ -20,11 +21,13 @@ class RailwayProvider(CostProvider):
         team_id: str | None,
         project_id: str | None,
         workspace_id: str | None,
+        breakdown: bool,
     ) -> None:
         self.api_token = api_token
         self.team_id = team_id
         self.project_id = project_id
         self.workspace_id = workspace_id
+        self.breakdown = breakdown
 
     async def get_daily_cost(self, start_date: date, end_date: date) -> CostResult:
         if not self.api_token:
@@ -43,6 +46,21 @@ class RailwayProvider(CostProvider):
                 currency="USD",
                 status="skipped",
                 details=["RAILWAY_WORKSPACE_ID is not set"],
+            )
+
+        if self.breakdown:
+            report = get_railway_daily_cost_report(target_date=start_date)
+            warnings = report.get("warnings", [])
+            status = "ok" if report.get("total_cost") is not None else "warning"
+            if warnings:
+                status = "warning"
+            return CostResult(
+                provider=self.name,
+                total=float(report.get("total_cost", 0.0)),
+                currency="USD",
+                status=status,
+                details=warnings if warnings else ["Railway detailed breakdown enabled"],
+                raw={"breakdown_text": report.get("text", "")},
             )
 
         try:
@@ -163,8 +181,6 @@ async def graphql_request(api_token: str, query: str, variables: dict[str, Any])
                 response=response,
             )
         return data
-
-
 
 
 def _to_utc_start_iso(day: date) -> str:

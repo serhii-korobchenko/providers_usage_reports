@@ -20,6 +20,7 @@ def build_providers(config: ReporterConfig) -> list[CostProvider]:
                     config.railway_team_id,
                     config.railway_project_id,
                     config.railway_workspace_id,
+                    config.railway_cost_breakdown,
                 )
             )
         elif name == "google_cloud":

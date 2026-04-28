@@ -21,9 +21,13 @@ def format_report_message(target_date: date, results: list[CostResult]) -> str:
             "skipped": "⚠️",
         }[result.status]
 
-        if result.total is not None and result.status == "ok":
+        if result.total is not None and result.status in {"ok", "warning"}:
             lines.append(f"{icon} {pretty_provider_name(result.provider)}: {result.total:.4f} {result.currency}")
             totals_by_currency[result.currency] += result.total
+            breakdown_text = result.raw.get("breakdown_text") if isinstance(result.raw, dict) else None
+            if isinstance(breakdown_text, str) and breakdown_text.strip():
+                lines.append("")
+                lines.append(breakdown_text)
         else:
             reason = "; ".join(result.details) if result.details else result.status
             lines.append(f"{icon} {pretty_provider_name(result.provider)}: {result.status} / {reason}")

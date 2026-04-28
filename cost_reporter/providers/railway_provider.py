@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from cost_reporter.providers.base import CostProvider, CostResult
@@ -57,7 +57,7 @@ class RailwayProvider(CostProvider):
             )
 
         query = """
-        query GetRailwayUsage($workspaceId: String!) {
+        query GetRailwayUsage($workspaceId: String!, $startDate: DateTime!, $endDate: DateTime!) {
           usage(
             workspaceId: $workspaceId
             measurements: [
@@ -69,15 +69,30 @@ class RailwayProvider(CostProvider):
               EPHEMERAL_DISK_USAGE_GB
               BACKUP_USAGE_GB
             ]
+            startDate: $startDate
+            endDate: $endDate
           ) {
             measurement
             value
+            tags {
+              deploymentId
+              deploymentInstanceId
+              environmentId
+              pluginId
+              projectId
+              region
+              serviceId
+              volumeId
+              volumeInstanceId
+            }
           }
         }
         """
 
         variables = {
             "workspaceId": self.workspace_id,
+            "startDate": _to_utc_start_iso(start_date),
+            "endDate": _to_utc_start_iso(end_date),
         }
 
         try:
@@ -148,6 +163,13 @@ async def graphql_request(api_token: str, query: str, variables: dict[str, Any])
                 response=response,
             )
         return data
+
+
+
+
+def _to_utc_start_iso(day: date) -> str:
+    value = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
+    return value.isoformat().replace("+00:00", "Z")
 
 
 def _extract_railway_usage_total(payload: dict[str, Any]) -> float | None:

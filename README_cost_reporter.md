@@ -124,6 +124,12 @@ python -m cost_reporter.main --date yesterday
 - Якщо Railway build падає на `externally-managed-environment`, не запускайте `ensurepip`; залишайте `nixpacks.toml` мінімальним (тільки `[start]`).
 - `Telegram send failed`: перевірте `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, чи бот доданий у канал/чат.
 
+
+### Docker security notes
+- Не передавайте секрети через `ARG` або `ENV` у `Dockerfile` (tokens/keys/credentials).
+- Передавайте секрети тільки в runtime через Railway Variables / Secret Manager.
+- Поточний `Dockerfile` не містить секретних `ARG/ENV` і очікує змінні оточення під час запуску контейнера.
+
 ## Security notes
 
 - Не зберігайте логіни/паролі у коді чи git.

@@ -50,6 +50,29 @@ class RailwayUsageCostsTests(unittest.TestCase):
         self.assertAlmostEqual(report["items"]["MEMORY_USAGE_GB"]["cost"], 4.5)
         self.assertAlmostEqual(report["total_cost"], 19.4)
 
+
+    def test_sums_measurements_from_multiple_projects(self) -> None:
+        payload = {
+            "data": {
+                "usage": [
+                    {"measurement": "CPU_USAGE", "value": 1.0, "tags": {"projectId": "p1"}},
+                    {"measurement": "CPU_USAGE", "value": 2.5, "tags": {"projectId": "p2"}},
+                    {"measurement": "MEMORY_USAGE_GB", "value": 3.0, "tags": {"projectId": "p1"}},
+                    {"measurement": "MEMORY_USAGE_GB", "value": 7.0, "tags": {"projectId": "p2"}},
+                ]
+            }
+        }
+
+        with patch.object(usage_costs, "graphql_request", return_value=payload):
+            report = usage_costs._build_report_for_date(date(2026, 4, 27))
+
+        # CPU total usage = 3.5, price=2.0 => cost=7.0
+        self.assertAlmostEqual(report["items"]["CPU_USAGE"]["usage"], 3.5)
+        self.assertAlmostEqual(report["items"]["CPU_USAGE"]["cost"], 7.0)
+        # Memory total usage = 10.0, price=1.5 => cost=15.0
+        self.assertAlmostEqual(report["items"]["MEMORY_USAGE_GB"]["usage"], 10.0)
+        self.assertAlmostEqual(report["items"]["MEMORY_USAGE_GB"]["cost"], 15.0)
+
     def test_missing_price_defaults_to_zero(self) -> None:
         del os.environ["RAILWAY_PRICE_CPU_USAGE"]
 

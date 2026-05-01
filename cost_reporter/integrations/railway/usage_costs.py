@@ -231,9 +231,11 @@ def _extract_usage_map(payload: dict[str, Any]) -> dict[str, float] | None:
             continue
         value = item.get("value", 0)
         try:
-            usage_map[key] = float(value)
+            parsed = float(value)
         except (TypeError, ValueError):
-            usage_map[key] = 0.0
+            parsed = 0.0
+
+        usage_map[key] = usage_map.get(key, 0.0) + parsed
 
     return usage_map
 
